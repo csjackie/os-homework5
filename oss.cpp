@@ -170,7 +170,7 @@ int main(int argc, char** argv) {
 
 				readyQueue.push(idx);
 
-				logFile << "OSS: Created P" << idx << "\n";
+				logFile << "OSS: Created P" << idx << " (PID " << pid << ")\n";
 
 				totalLaunched++;
 				activeChildren++;
@@ -187,9 +187,9 @@ int main(int argc, char** argv) {
 					table[j].blocked = 0;
 					table[j].requestResource = -1;
 
-					readyQueue.push(i);
+					readyQueue.push(j);
 
-					logFile << "OSS: Unblocked P" << i << " granted R" << r << "\n";
+					logFile << "OSS: Unblocked P" << j << " granted R" << (r + 1) << "\n";
 				}
 			}
 		}
@@ -222,19 +222,30 @@ int main(int argc, char** argv) {
 			if (val > 0) {
 				int r = val -1;
 
-				logFile << "OSS: P" << idx << " requesting R" << r << "\n";
+				logFile << "OSS: P" << idx << " requesting R" << (r + 1) << "\n";
 
 				if (resources[r].available > 0) {
 					resources[r].available--;
 					table[idx].resourcesAllocated[r]++;
 					readyQueue.push(idx);
 
-					logFile << "OSS: granted R" << r << " to P" << idx << "\n";
+					logFile << "OSS: granted R" << (r + 1) << " to P" << idx << "\n";
 				} else {
+
+					if (activeChildren == 1) {
+						logFile << "OSS: Only one process, forcing termination of P" << idx << "\n";
+						kill(pid, SIGTERM);
+						waitpid(pid, nullptr, 0);
+						
+						table[idx].occupied = 0;
+						activeChildren--;
+						continue;
+					}
+
 					table[idx].blocked = 1;
 					table[idx].requestResource = r;
 
-					logFile << "OSS: blocking P" << idx << " for R" << r << "\n";
+					logFile << "OSS: blocking P" << idx << " for R" << (r + 1) << "\n";
 				}
 			}
 
@@ -249,7 +260,7 @@ int main(int argc, char** argv) {
 
 				readyQueue.push(idx);
 
-				logFile << "OSS: P" << idx << " released R" << r << "\n";
+				logFile << "OSS: P" << idx << " released R" << (r + 1) << "\n";
 			}
 
 			// Terminate
@@ -266,7 +277,7 @@ int main(int argc, char** argv) {
 		}
 
 		// Deadlock detection
-		if (simClock->seconds > lastDeadlockCheck) {
+		if (simClock->seconds > lastDeadlockCheck + 1) {
 			lastDeadlockCheck = simClock->seconds;
 
 			if (detectDeadlock(table, activeChildren)) {
@@ -294,6 +305,7 @@ int main(int argc, char** argv) {
 		}
 
 		incrementClock(10000000);
+		usleep(1000);
 	}
 
 	cleanup();

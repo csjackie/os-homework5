@@ -21,7 +21,7 @@ int main(int argc, char** argv) {
     int msqid = atoi(argv[1]);
     pid_t pid = getpid();
 
-    srand(time(nullptr) ^ pid);
+    srand(getpid() * time(nullptr));
 
     // Track resources this process owns
     int allocated[MAX_RESOURCES];
@@ -50,7 +50,7 @@ int main(int argc, char** argv) {
 
         // Request (70%)
         if (action < 70) {
-            int r = rand() % MAX_RESOURCES;
+            int r = (rand() + pid) % MAX_RESOURCES;
 
             if (allocated[r] >= 5) {
                 action = 100;
@@ -74,7 +74,7 @@ int main(int argc, char** argv) {
                 response.value = -(r + 1);
             } else {
 		// nothing to release, request instead
-                int r = rand() % MAX_RESOURCES;
+                int r = (rand() + pid) % MAX_RESOURCES;
                 response.value = r + 1;
             }
         }
