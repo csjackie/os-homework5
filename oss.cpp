@@ -4,7 +4,7 @@
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <sys/msg.h>
-#include <sys/wait.>
+#include <sys/wait.h>
 #include <signal.h>
 #include <queue>
 #include <fstream>
@@ -41,6 +41,7 @@ struct msgbuffer {
 // ** Globals **
 int shmid, msqid;
 SimulatedClock* simClock = nullptr;
+std::string filename = "log.txt";
 
 // ** Utilities **
 void incrementClock(int ns) {
@@ -64,7 +65,10 @@ void signal_handler(int sig) {
 }
 
 // deadlock
-bool detectDeadlock(PCB tabld[]) {
+bool detectDeadlock(PCB table[], int activeChildren) {
+	if (activeChildren <= 1)
+		return false;
+
 	for (int i = 0; i < MAX_PROCESSES; i++) {
 		if (table[i].occupied && !table[i].blocked)
 			return false;
@@ -74,8 +78,41 @@ bool detectDeadlock(PCB tabld[]) {
 
 // main function
 int main(int argc, char** argv) {
+	
+	// Default values for command line parameters
+        int n = 1;
+        int s = 1;
+        float t = 1;
+        float i = 1;
+        int opt;
+
+        // parse command line arguments
+        while ((opt = getopt(argc, argv, "hn:s:t:i:f:")) != -1) {
+                switch (opt) {
+                        case 'h':
+                                std::cout << "To run program:\n\t ./oss -n # -s # -t # -i # -f file name\n";
+                                return 0;
+                        // Total number of children to launch
+                        case 'n': n = atoi(optarg); break;
+                        // Maximum simultaneous children 
+                        case 's': s = atoi(optarg); break;
+                        // Maximum time children ran before termination
+                        case 't': t = atof(optarg); break;
+                        // Allowed time between children launched
+                        case 'i': i = atof(optarg); break;
+                        // logfile
+                        case 'f': filename = optarg; break;
+                }
+        }
+
+        // Prints error message and exits program if the value of n, s, or t are out of range
+        if (n <= 0 || n > 20 || s <= 0 || s > n || t <= 0) {
+                std::cout << "Invalid argument values\n";
+                exit(1);
+        }
+	
 	signal(SIGINT, signal_handler);
-	std::ofstream logFile("log.txt");
+	std::ofstream logFile(filename);
 
 	// Shared memory
 	shmid = shmget(IPC_PRIVATE, sizeof(SimulatedClock), IPC_CREAT | 0666);
@@ -91,24 +128,26 @@ int main(int argc, char** argv) {
 
 	// Resource table
 	Resource resources[MAX_RESOURCES];
-	for (int i = 0; i < MAX_RESOURCES; i++) {
-		resources[i].total = 5;
-		resources[i].available = 5;
+	for (int j = 0; j < MAX_RESOURCES; j++) {
+		resources[j].total = 5;
+		resources[j].available = 5;
 	}
 
 	std::queue<int> readyQueue;
 
 	int totalLaunched = 0;
 	int activeChildren = 0;
+	
+	unsigned int lastDeadlockCheck = 0;
 
 	// Main loop
-	while (totalLaunched < 5 || activeChildren > 0) {
+	while (totalLaunched < n || activeChildren > 0) {
 		// Launch children
-		if (activeChildren < 5) {
+		if (totalLaunched < n && activeChildren < s) {
 			int idx = -1;
-			for (int i = 0; i < MAX_PROCESSES; i++) {
-				if (!table[i].occupied) {
-					idx = 0;
+			for (int j = 0; j < MAX_PROCESSES; j++) {
+				if (!table[j].occupied) {
+					idx = j;
 					break;
 				}
 			}
@@ -126,7 +165,7 @@ int main(int argc, char** argv) {
 				table[idx].occupied = 1;
 				table[idx].pid = pid;
 				table[idx].blocked = 0;
-				table[idx].requestedResource = -1;
+				table[idx].requestResource = -1;
 				memset(table[idx].resourcesAllocated, 0, sizeof(int) * MAX_RESOURCES);
 
 				readyQueue.push(idx);
@@ -139,13 +178,14 @@ int main(int argc, char** argv) {
 		}
 
 		// Unblock processes
-		for (int i = 0; i < MAX_PROCESSES; i++) {
-			if (table[i].occupied && table[i].blocked) {
-				int r = table[i].requestedResource;
+		for (int j = 0; j < MAX_PROCESSES; j++) {
+			if (table[j].occupied && table[j].blocked) {
+				int r = table[j].requestResource;
 				if (r >= 0 && resources[r].available > 0) {
 					resources[r].available--;
-					table[i].resourcesAllocated[r]++;
-					table[i].blocked = 0;
+					table[j].resourcesAllocated[r]++;
+					table[j].blocked = 0;
+					table[j].requestResource = -1;
 
 					readyQueue.push(i);
 
@@ -171,34 +211,41 @@ int main(int argc, char** argv) {
 
 			// receive response
 			msgbuffer res;
-			msgrc(msqid, &res, sizeof(int), pid, 0);
+			if (msgrcv(msqid, &res, sizeof(int), pid, 0) == -1) {
+				perror("msgrcv");
+				exit(1);
+			}
 
 			int val = res.value;
 
 			// Request
 			if (val > 0) {
-				logFile << "OSS: P" << idx " requesting R" << val << "\n";
+				int r = val -1;
 
-				if (resources[val].available > 0) {
-					resources[val].available--;
-					table[idx].resourcesAllocated[val]++;
+				logFile << "OSS: P" << idx << " requesting R" << r << "\n";
+
+				if (resources[r].available > 0) {
+					resources[r].available--;
+					table[idx].resourcesAllocated[r]++;
 					readyQueue.push(idx);
 
-					logFile << "OSS: granted R" << val << " to P" << idx << "\n";
+					logFile << "OSS: granted R" << r << " to P" << idx << "\n";
 				} else {
 					table[idx].blocked = 1;
-					table[idx].requestedResource = val;
+					table[idx].requestResource = r;
 
-					logFile << "OSS: blocking P" << idx << " for R" << val << "\n";
+					logFile << "OSS: blocking P" << idx << " for R" << r << "\n";
 				}
 			}
 
 			// Release
 			else if (val < 0) {
-				int r = abs(val);
+				int r = abs(val) - 1;
 
-				resources[r].available++;
-				table[idx].resourcesAllocated[r]--;
+				if (table[idx].resourcesAllocated[r] > 0) {
+					table[idx].resourcesAllocated[r]--;
+					resources[r].available++;
+				}
 
 				readyQueue.push(idx);
 
@@ -219,25 +266,27 @@ int main(int argc, char** argv) {
 		}
 
 		// Deadlock detection
-		if (simClock->seconds % 1 == 0) {
-			if (detectDeadlock(table)) {
+		if (simClock->seconds > lastDeadlockCheck) {
+			lastDeadlockCheck = simClock->seconds;
+
+			if (detectDeadlock(table, activeChildren)) {
 				logFile << "OSS: Deadlock detected\n";
 
 				// kill first blocked process
-				for (int i = 0; i < MAX_PROCESSES; i++) {
-					if (table[i].occupied && table[i].blocked) {
+				for (int j = 0; j < MAX_PROCESSES; j++) {
+					if (table[j].occupied && table[j].blocked) {
 
-						kill(table[i].pid, SIGTERM);
+						kill(table[j].pid, SIGTERM);
 
 						for (int r = 0; r < MAX_RESOURCES; r++) {
-							resources[r].available += table[i].resourcesAllocated[r];
+							resources[r].available += table[j].resourcesAllocated[r];
 						}
 
-						waitpid(table[i].pid, nullptr, 0);
-						table[i].occupied = 0;
+						waitpid(table[j].pid, nullptr, 0);
+						table[j].occupied = 0;
 						activeChildren--;
 
-						logFile << "OSS: Killed P" << i << " to resolve deadlock\n";
+						logFile << "OSS: Killed P" << j << " to resolve deadlock\n";
 						break;
 					}
 				}
