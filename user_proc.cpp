@@ -11,7 +11,7 @@
 
 struct msgbuffer {
     long mtype;
-    int value; // >0 request, <0 release, 0 terminate
+    int value;
 };
 
 int main(int argc, char** argv) {
@@ -27,25 +27,20 @@ int main(int argc, char** argv) {
     int allocated[MAX_RESOURCES];
     memset(allocated, 0, sizeof(allocated));
 
-    int lifetime = 1 + rand() % 5; // pseudo "time to live" loop count
-    int iterations = 0;
-
     while (true) {
 
-        // ===== WAIT FOR OSS SIGNAL =====
+        // Wait for OSS
         msgbuffer msg;
         if (msgrcv(msqid, &msg, sizeof(int), pid, 0) == -1) {
             perror("msgrcv");
             exit(1);
         }
 
-        iterations++;
-
         msgbuffer response;
         response.mtype = pid;
 
-        // ===== TERMINATION CHECK =====
-        if (iterations >= lifetime) {
+        // Random termination
+        if (rand() % 100 < 10) {
             response.value = 0; // terminate
             msgsnd(msqid, &response, sizeof(int), 0);
             break;
@@ -53,20 +48,18 @@ int main(int argc, char** argv) {
 
         int action = rand() % 100;
 
-        // ===== REQUEST (≈70%) =====
+        // Request (70%)
         if (action < 70) {
             int r = rand() % MAX_RESOURCES;
 
-            // ensure we don’t exceed some reasonable amount
-            if (allocated[r] < 5) {
-                response.value = r;
-            } else {
-                // fallback: release instead
+            if (allocated[r] >= 5) {
                 action = 100;
+            } else {
+                response.value = r + 1;
             }
         }
 
-        // ===== RELEASE (≈30%) =====
+        // Release (30%)
         if (action >= 70) {
             std::vector<int> owned;
 
@@ -78,22 +71,21 @@ int main(int argc, char** argv) {
             if (!owned.empty()) {
                 int r = owned[rand() % owned.size()];
                 allocated[r]--;
-                response.value = -r;
+                response.value = -(r + 1);
             } else {
-                // nothing to release → request instead
+		// nothing to release, request instead
                 int r = rand() % MAX_RESOURCES;
-                response.value = r;
+                response.value = r + 1;
             }
         }
 
-        // ===== SEND ACTION TO OSS =====
+        // Send to OSS
         msgsnd(msqid, &response, sizeof(int), 0);
 
-        // ===== WAIT FOR POSSIBLE GRANT =====
-        // If request was granted, OSS will eventually let us run again.
-        // We assume grant happened if we requested and were not blocked.
+        // Assume granted if request
         if (response.value > 0) {
-            allocated[response.value]++;
+		int r = response.value -1;
+            	allocated[r]++;
         }
     }
 
