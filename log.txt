@@ -1,0 +1,95 @@
+OSS: Created P0 (PID 179232)
+OSS: P0 requesting R1
+OSS: granted R1 to P0
+OSS: Created P1 (PID 179234)
+OSS: P0 requesting R1
+OSS: granted R1 to P0
+OSS: Created P2 (PID 179235)
+OSS: P1 requesting R1
+OSS: granted R1 to P1
+OSS: P0 requesting R1
+OSS: granted R1 to P0
+OSS: P2 requesting R5
+OSS: granted R5 to P2
+OSS: P1 requesting R4
+OSS: granted R4 to P1
+OSS: P0 released R1
+OSS: P2 requesting R3
+OSS: granted R3 to P2
+OSS: P1 requesting R10
+OSS: granted R10 to P1
+OSS: P0 requesting R10
+OSS: granted R10 to P0
+OSS: P2 requesting R9
+OSS: granted R9 to P2
+OSS: P1 requesting R6
+OSS: granted R6 to P1
+OSS: P0 released R10
+OSS: P2 released R9
+OSS: P1 requesting R8
+OSS: granted R8 to P1
+OSS: P0 terminating
+OSS: Created P0 (PID 179236)
+OSS: P2 requesting R5
+OSS: granted R5 to P2
+OSS: P1 released R4
+OSS: P0 requesting R10
+OSS: granted R10 to P0
+OSS: P2 requesting R7
+OSS: granted R7 to P2
+OSS: P1 requesting R2
+OSS: granted R2 to P1
+OSS: P0 requesting R6
+OSS: granted R6 to P0
+OSS: P2 requesting R4
+OSS: granted R4 to P2
+OSS: P1 requesting R6
+OSS: granted R6 to P1
+OSS: P0 requesting R2
+OSS: granted R2 to P0
+OSS: P2 requesting R7
+OSS: granted R7 to P2
+OSS: P1 terminating
+OSS: Created P1 (PID 179237)
+OSS: P0 requesting R4
+OSS: granted R4 to P0
+OSS: P2 requesting R5
+OSS: granted R5 to P2
+OSS: P1 requesting R2
+OSS: granted R2 to P1
+OSS: P0 requesting R6
+OSS: granted R6 to P0
+OSS: P2 requesting R7
+OSS: granted R7 to P2
+OSS: P1 requesting R3
+OSS: granted R3 to P1
+OSS: P0 released R2
+OSS: P2 released R7
+OSS: P1 requesting R1
+OSS: granted R1 to P1
+OSS: P0 requesting R8
+OSS: granted R8 to P0
+OSS: P2 released R7
+OSS: P1 requesting R5
+OSS: granted R5 to P1
+OSS: P0 released R4
+OSS: P2 requesting R9
+OSS: granted R9 to P2
+OSS: P1 terminating
+OSS: P0 requesting R7
+OSS: granted R7 to P0
+OSS: P2 requesting R1
+OSS: granted R1 to P2
+OSS: P0 requesting R10
+OSS: granted R10 to P0
+OSS: P2 released R5
+OSS: P0 requesting R9
+OSS: granted R9 to P0
+OSS: P2 terminating
+OSS: P0 terminating
+
+ ---------Statistics---------
+Total Requests: 35
+Granted: 35
+Blocked: 0
+Deadlocks detected: 0

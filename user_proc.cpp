@@ -67,10 +67,10 @@ int main(int argc, char** argv) {
 		} else {
 			r = rand() % MAX_RESOURCES;
 		}
-
+		
 		if (r == lastRequested) {
-			r = (r + 1) % MAX_RESOURCES;
-		}
+		r = (r + 1) % MAX_RESOURCES;
+		}	
 
 		lastRequested = r;
 		response.value = r + 1;

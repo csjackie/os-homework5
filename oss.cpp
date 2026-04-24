@@ -191,7 +191,7 @@ int main(int argc, char** argv) {
 				if (pid == 0) {
 					char msqidStr[16];
 					sprintf(msqidStr, "%d", msqid);
-					execl("./worker", "./worker", msqidStr, nullptr);
+					execl("./user_proc", "./user_proc", msqidStr, nullptr);
 					exit(1);
 				}
 
