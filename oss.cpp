@@ -76,6 +76,29 @@ bool detectDeadlock(PCB table[], int activeChildren) {
 	return true;
 }
 
+// display resource table
+void printResourceTable(Resource resources[], std::ofstream &logFile) {
+	logFile << "OSS: Resource Table:\n";
+	for (int i = 0; i < MAX_RESOURCES; i++) {
+		logFile << "R" << (i + 1) << ": "
+			<< resources[i].available << "/"
+			<< resources[i].total << " ";
+	}
+	logFile << "\n";
+}
+
+// display process table
+void printProcessTable(PCB table[], std::ofstream &logFile) {
+	logFile << "OSS: Process Table:\n";
+	for (int i = 0; i < MAX_PROCESSES; i++) {
+		if (table[i].occupied) {
+			logFile << "P" << i
+				<< " PID " << table[i].pid
+				<< " Blocked " << table[i].blocked << "\n";
+		}
+	}
+}
+
 // main function
 int main(int argc, char** argv) {
 	
@@ -112,6 +135,9 @@ int main(int argc, char** argv) {
         }
 	
 	signal(SIGINT, signal_handler);
+	signal(SIGALRM, signal_handler);
+	alarm(5);
+
 	std::ofstream logFile(filename);
 
 	// Shared memory
@@ -139,6 +165,13 @@ int main(int argc, char** argv) {
 	int activeChildren = 0;
 	
 	unsigned int lastDeadlockCheck = 0;
+	unsigned int lastPrint = 0;
+
+	// stats
+	int totalRequests = 0;
+	int grantedRequests = 0;
+	int blockedRequests = 0;
+	int deadlocks = 0;
 
 	// Main loop
 	while (totalLaunched < n || activeChildren > 0) {
@@ -221,6 +254,7 @@ int main(int argc, char** argv) {
 			// Request
 			if (val > 0) {
 				int r = val -1;
+				totalRequests++;
 
 				logFile << "OSS: P" << idx << " requesting R" << (r + 1) << "\n";
 
@@ -228,6 +262,7 @@ int main(int argc, char** argv) {
 					resources[r].available--;
 					table[idx].resourcesAllocated[r]++;
 					readyQueue.push(idx);
+					grantedRequests++;
 
 					logFile << "OSS: granted R" << (r + 1) << " to P" << idx << "\n";
 				} else {
@@ -244,6 +279,7 @@ int main(int argc, char** argv) {
 
 					table[idx].blocked = 1;
 					table[idx].requestResource = r;
+					blockedRequests++;
 
 					logFile << "OSS: blocking P" << idx << " for R" << (r + 1) << "\n";
 				}
@@ -281,6 +317,7 @@ int main(int argc, char** argv) {
 			lastDeadlockCheck = simClock->seconds;
 
 			if (detectDeadlock(table, activeChildren)) {
+				deadlocks++;
 				logFile << "OSS: Deadlock detected\n";
 
 				// kill first blocked process
@@ -304,9 +341,23 @@ int main(int argc, char** argv) {
 			}
 		}
 
+		// display table
+		if (simClock->seconds > lastPrint) {
+			printResourceTable(resources, logFile);
+			printProcessTable(table, logFile);
+			lastPrint = simClock->seconds;
+		}
+
 		incrementClock(10000000);
 		usleep(1000);
 	}
+
+	// final stats
+	logFile << "\n ---------Statistics---------\n";
+	logFile << "Total Requests: " << totalRequests << "\n";
+	logFile << "Granted: " << grantedRequests << "\n";
+	logFile << "Blocked: " << blockedRequests << "\n";
+	logFile << "Deadlocks detected: " << deadlocks << "\n";
 
 	cleanup();
 	logFile.close();
