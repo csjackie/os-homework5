@@ -10,30 +10,32 @@
 #define MAX_RESOURCES 10
 
 struct msgbuffer {
-    long mtype;
-    int value;
+    	long mtype;
+    	int value;
 };
 
 int main(int argc, char** argv) {
 
-    if (argc < 2) return 1;
+    	if (argc < 2) return 1;
 
-    int msqid = atoi(argv[1]);
-    pid_t pid = getpid();
+    	int msqid = atoi(argv[1]);
+    	pid_t pid = getpid();
 
-    srand(getpid() * time(nullptr));
+    	srand(time(nullptr) ^ pid);
 
-    // Track resources this process owns
-    int allocated[MAX_RESOURCES];
-    memset(allocated, 0, sizeof(allocated));
+    	// Track resources this process owns
+    	int allocated[MAX_RESOURCES];
+    	memset(allocated, 0, sizeof(allocated));
+
+	int lastRequested = -1;
 
     while (true) {
 
         // Wait for OSS
         msgbuffer msg;
         if (msgrcv(msqid, &msg, sizeof(int), pid, 0) == -1) {
-            perror("msgrcv");
-            exit(1);
+            	perror("msgrcv");
+            	exit(1);
         }
 
         msgbuffer response;
@@ -41,42 +43,57 @@ int main(int argc, char** argv) {
 
         // Random termination
         if (rand() % 100 < 10) {
-            response.value = 0; // terminate
-            msgsnd(msqid, &response, sizeof(int), 0);
-            break;
+            	response.value = 0; // terminate
+            	msgsnd(msqid, &response, sizeof(int), 0);
+            	break;
         }
 
         int action = rand() % 100;
 
         // Request (70%)
         if (action < 70) {
-            int r = (rand() + pid) % MAX_RESOURCES;
+		std::vector<int> choices;
+		
+		for (int i = 0; i < MAX_RESOURCES; i++) {
+			if (allocated[i] < 3) {
+				choices.push_back(i);
+			}
+		}
 
-            if (allocated[r] >= 5) {
-                action = 100;
-            } else {
-                response.value = r + 1;
-            }
-        }
+		int r;
+
+		if (!choices.empty()) {
+			r = choices[rand() % choices.size()];
+		} else {
+			r = rand() % MAX_RESOURCES;
+		}
+
+		if (r == lastRequested) {
+			r = (r + 1) % MAX_RESOURCES;
+		}
+
+		lastRequested = r;
+		response.value = r + 1;
+	}
 
         // Release (30%)
-        if (action >= 70) {
-            std::vector<int> owned;
+	else {
+		std::vector<int> owned;
 
-            for (int i = 0; i < MAX_RESOURCES; i++) {
-                if (allocated[i] > 0)
-                    owned.push_back(i);
-            }
+            	for (int i = 0; i < MAX_RESOURCES; i++) {
+                	if (allocated[i] > 0)
+                    	owned.push_back(i);
+            	}
 
-            if (!owned.empty()) {
-                int r = owned[rand() % owned.size()];
-                allocated[r]--;
-                response.value = -(r + 1);
-            } else {
-		// nothing to release, request instead
-                int r = (rand() + pid) % MAX_RESOURCES;
-                response.value = r + 1;
-            }
+            	if (!owned.empty()) {
+                	int r = owned[rand() % owned.size()];
+                	allocated[r]--;
+                	response.value = -(r + 1);
+            	} else {
+			// nothing to release, request instead
+                	int r = rand() % MAX_RESOURCES;
+                	response.value = r + 1;
+            	}
         }
 
         // Send to OSS
